@@ -90,8 +90,8 @@ ast::TreePtr ASTUtil::dupType(const ast::TreePtr &orig) {
     return ast::MK::UnresolvedConstant(cons->loc, std::move(scope), cons->cnst);
 }
 
-bool ASTUtil::hasHashValue(core::MutableContext ctx, const ast::Hash *hash, core::NameRef name) {
-    for (const auto &keyExpr : hash->keys) {
+bool ASTUtil::hasHashValue(core::MutableContext ctx, const ast::Hash &hash, core::NameRef name) {
+    for (const auto &keyExpr : hash.keys) {
         auto *key = ast::cast_tree_const<ast::Literal>(keyExpr);
         if (key && key->isSymbol(ctx) && key->asSymbol(ctx) == name) {
             return true;
@@ -100,13 +100,13 @@ bool ASTUtil::hasHashValue(core::MutableContext ctx, const ast::Hash *hash, core
     return false;
 }
 
-bool ASTUtil::hasTruthyHashValue(core::MutableContext ctx, const ast::Hash *hash, core::NameRef name) {
+bool ASTUtil::hasTruthyHashValue(core::MutableContext ctx, const ast::Hash &hash, core::NameRef name) {
     int i = -1;
-    for (const auto &keyExpr : hash->keys) {
+    for (const auto &keyExpr : hash.keys) {
         i++;
         auto *key = ast::cast_tree_const<ast::Literal>(keyExpr);
         if (key && key->isSymbol(ctx) && key->asSymbol(ctx) == name) {
-            auto val = ast::cast_tree_const<ast::Literal>(hash->values[i]);
+            auto *val = ast::cast_tree_const<ast::Literal>(hash.values[i]);
             if (!val) {
                 // All non-literals are truthy
                 return true;
@@ -120,33 +120,37 @@ bool ASTUtil::hasTruthyHashValue(core::MutableContext ctx, const ast::Hash *hash
     return false;
 }
 
-pair<ast::TreePtr, ast::TreePtr> ASTUtil::extractHashValue(core::MutableContext ctx, ast::Hash *hash,
+pair<ast::TreePtr, ast::TreePtr> ASTUtil::extractHashValue(core::MutableContext ctx, ast::Hash &hash,
                                                            core::NameRef name) {
     int i = -1;
-    for (auto &keyExpr : hash->keys) {
+    for (auto &keyExpr : hash.keys) {
         i++;
         auto *key = ast::cast_tree<ast::Literal>(keyExpr);
         if (key && key->isSymbol(ctx) && key->asSymbol(ctx) == name) {
             auto key = std::move(keyExpr);
-            auto value = std::move(hash->values[i]);
-            hash->keys.erase(hash->keys.begin() + i);
-            hash->values.erase(hash->values.begin() + i);
+            auto value = std::move(hash.values[i]);
+            hash.keys.erase(hash.keys.begin() + i);
+            hash.values.erase(hash.values.begin() + i);
             return make_pair(move(key), move(value));
         }
     }
     return make_pair(nullptr, nullptr);
 }
 
-// This will return nullptr if the argument is not the right shape as a sig (i.e. a send to a method called `sig` with 0
-// or 1 arguments, that in turn contains a block that contains a send) and it also checks the final method of the send
-// against the provided `returns` (so that some uses can specifically look for `void` sigs while others can specifically
-// look for non-void sigs).
-const ast::Send *ASTUtil::castSig(const ast::TreePtr &expr, core::NameRef returns) {
-    auto *send = ast::cast_tree_const<ast::Send>(expr);
+ast::Send *ASTUtil::castSig(ast::TreePtr &expr, core::NameRef returns) {
+    auto *send = ast::cast_tree<ast::Send>(expr);
     if (send == nullptr) {
         return nullptr;
     }
 
+    return ASTUtil::castSig(send, returns);
+}
+
+// This will return nullptr if the argument is not the right shape as a sig (i.e. a send to a method called `sig` with 0
+// or 1 arguments, that in turn contains a block that contains a send) and it also checks the final method of the send
+// against the provided `returns` (so that some uses can specifically look for `void` sigs while others can specifically
+// look for non-void sigs).
+ast::Send *ASTUtil::castSig(ast::Send *send, core::NameRef returns) {
     if (send->fun != core::Names::sig()) {
         return nullptr;
     }
@@ -157,9 +161,9 @@ const ast::Send *ASTUtil::castSig(const ast::TreePtr &expr, core::NameRef return
     if (nargs != 0 && nargs != 1) {
         return nullptr;
     }
-    auto *block = ast::cast_tree_const<ast::Block>(send->block);
+    auto *block = ast::cast_tree<ast::Block>(send->block);
     ENFORCE(block);
-    auto body = ast::cast_tree_const<ast::Send>(block->body);
+    auto body = ast::cast_tree<ast::Send>(block->body);
     if (!body) {
         return nullptr;
     }

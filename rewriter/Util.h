@@ -9,14 +9,15 @@ namespace sorbet::rewriter {
 class ASTUtil {
 public:
     static ast::TreePtr dupType(const ast::TreePtr &orig);
-    static bool hasHashValue(core::MutableContext ctx, const ast::Hash *hash, core::NameRef name);
-    static bool hasTruthyHashValue(core::MutableContext ctx, const ast::Hash *hash, core::NameRef name);
+    static bool hasHashValue(core::MutableContext ctx, const ast::Hash &hash, core::NameRef name);
+    static bool hasTruthyHashValue(core::MutableContext ctx, const ast::Hash &hash, core::NameRef name);
 
     /** Removes the key, value matching key with symbol `name` from hash and returns it */
-    static std::pair<ast::TreePtr, ast::TreePtr> extractHashValue(core::MutableContext ctx, ast::Hash *hash,
+    static std::pair<ast::TreePtr, ast::TreePtr> extractHashValue(core::MutableContext ctx, ast::Hash &hash,
                                                                   core::NameRef name);
 
-    static const ast::Send *castSig(const ast::TreePtr &expr, core::NameRef returns);
+    static ast::Send *castSig(ast::TreePtr &expr, core::NameRef returns);
+    static ast::Send *castSig(ast::Send *expr, core::NameRef returns);
 
     static ast::TreePtr mkGet(core::Context ctx, core::LocOffsets loc, core::NameRef name, ast::TreePtr rhs);
 

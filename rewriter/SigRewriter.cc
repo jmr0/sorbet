@@ -9,7 +9,7 @@ namespace sorbet::rewriter {
 // mark them as being dsl synthesized.
 void SigRewriter::run(core::MutableContext &ctx, ast::ClassDef *klass) {
     for (auto &rhs : klass->rhs) {
-        if (auto send = ast::cast_tree<ast::Send>(rhs.get())) {
+        if (auto send = ast::cast_tree<ast::Send>(rhs)) {
             if (send->fun == core::Names::sig() && send->recv->isSelfReference()) {
                 send->recv = ast::MK::Constant(send->loc, core::Symbols::T_Sig_WithoutRuntime());
                 send->flags.isRewriterSynthesized = true;

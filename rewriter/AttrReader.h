@@ -26,7 +26,7 @@ namespace sorbet::rewriter {
  */
 class AttrReader final {
 public:
-    static std::vector<ast::TreePtr> run(core::MutableContext ctx, ast::Send *send, const ast::TreePtr &prevStat);
+    static std::vector<ast::TreePtr> run(core::MutableContext ctx, ast::Send *send, ast::TreePtr *prevStat);
 
     AttrReader() = delete;
 };

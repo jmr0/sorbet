@@ -214,23 +214,23 @@ optional<PropInfo> parseProp(core::MutableContext ctx, const ast::Send *send) {
     // ----- Parse any extra options -----
     if (rulesTree) {
         auto *rules = ast::cast_tree<ast::Hash>(rulesTree);
-        if (ASTUtil::hasTruthyHashValue(ctx, rules, core::Names::immutable())) {
+        if (ASTUtil::hasTruthyHashValue(ctx, *rules, core::Names::immutable())) {
             ret.isImmutable = true;
         }
 
-        if (ASTUtil::hasHashValue(ctx, rules, core::Names::withoutAccessors())) {
+        if (ASTUtil::hasHashValue(ctx, *rules, core::Names::withoutAccessors())) {
             ret.hasWithoutAccessors = true;
         }
 
-        if (ASTUtil::hasTruthyHashValue(ctx, rules, core::Names::factory())) {
+        if (ASTUtil::hasTruthyHashValue(ctx, *rules, core::Names::factory())) {
             ret.default_ = ast::MK::RaiseUnimplemented(ret.loc);
-        } else if (ASTUtil::hasHashValue(ctx, rules, core::Names::default_())) {
+        } else if (ASTUtil::hasHashValue(ctx, *rules, core::Names::default_())) {
             auto [key, val] = ASTUtil::extractHashValue(ctx, *rules, core::Names::default_());
             ret.default_ = std::move(val);
         }
 
         // e.g. `const :foo, type, computed_by: :method_name`
-        if (ASTUtil::hasTruthyHashValue(ctx, rules, core::Names::computedBy())) {
+        if (ASTUtil::hasTruthyHashValue(ctx, *rules, core::Names::computedBy())) {
             auto [key, val] = ASTUtil::extractHashValue(ctx, *rules, core::Names::computedBy());
             auto lit = ast::cast_tree<ast::Literal>(val);
             if (lit != nullptr && lit->isSymbol(ctx)) {
@@ -246,7 +246,7 @@ optional<PropInfo> parseProp(core::MutableContext ctx, const ast::Send *send) {
         auto [fk, foreignTree] = ASTUtil::extractHashValue(ctx, *rules, core::Names::foreign());
         if (foreignTree != nullptr) {
             ret.foreign = move(foreignTree);
-            if (auto body = ASTUtil::thunkBody(ctx, ret.foreign.get())) {
+            if (auto body = ASTUtil::thunkBody(ctx, ret.foreign)) {
                 ret.foreign = std::move(body);
             } else {
                 if (auto e = ctx.beginError(ret.foreign->loc, core::errors::Rewriter::PropForeignStrict)) {
@@ -275,7 +275,7 @@ optional<PropInfo> parseProp(core::MutableContext ctx, const ast::Send *send) {
     return ret;
 }
 
-vector<ast::TreePtr> processProp(core::MutableContext ctx, const PropInfo &ret, PropContext propContext) {
+vector<ast::TreePtr> processProp(core::MutableContext ctx, PropInfo &ret, PropContext propContext) {
     vector<ast::TreePtr> nodes;
 
     const auto loc = ret.loc;
@@ -443,7 +443,7 @@ vector<ast::TreePtr> processProp(core::MutableContext ctx, const PropInfo &ret, 
 
         // Maybe make a getter
         ast::TreePtr mutator;
-        if (ASTUtil::isProbablySymbol(ctx, ret.type.get(), core::Symbols::Hash())) {
+        if (ASTUtil::isProbablySymbol(ctx, ret.type, core::Symbols::Hash())) {
             mutator = ASTUtil::mkMutator(ctx, loc, core::Names::Constants::HashMutator());
             auto *send = ast::cast_tree_const<ast::Send>(ret.type);
             if (send && send->fun == core::Names::squareBrackets() && send->args.size() == 2) {
@@ -453,7 +453,7 @@ vector<ast::TreePtr> processProp(core::MutableContext ctx, const PropInfo &ret, 
                 mutator = ast::MK::Send2(loc, std::move(mutator), core::Names::squareBrackets(), ast::MK::Untyped(loc),
                                          ast::MK::Untyped(loc));
             }
-        } else if (ASTUtil::isProbablySymbol(ctx, ret.type.get(), core::Symbols::Array())) {
+        } else if (ASTUtil::isProbablySymbol(ctx, ret.type, core::Symbols::Array())) {
             mutator = ASTUtil::mkMutator(ctx, loc, core::Names::Constants::ArrayMutator());
             auto *send = ast::cast_tree_const<ast::Send>(ret.type);
             if (send && send->fun == core::Names::squareBrackets() && send->args.size() == 1) {
@@ -506,7 +506,7 @@ ast::TreePtr ensureWithoutAccessors(const PropInfo &prop, const ast::Send *send)
     }
 }
 
-vector<unique_ptr<ast::Expression>> mkTypedInitialize(core::MutableContext ctx, core::LocOffsets klassLoc,
+vector<ast::TreePtr> mkTypedInitialize(core::MutableContext ctx, core::LocOffsets klassLoc,
                                                       const vector<PropInfo> &props) {
     ast::MethodDef::ARGS_store args;
     ast::Hash::ENTRY_store sigKeys;
@@ -547,7 +547,7 @@ vector<unique_ptr<ast::Expression>> mkTypedInitialize(core::MutableContext ctx, 
     }
     auto body = ast::MK::InsSeq(klassLoc, std::move(stats), ast::MK::ZSuper(klassLoc));
 
-    vector<unique_ptr<ast::Expression>> result;
+    vector<ast::TreePtr> result;
     result.emplace_back(ast::MK::SigVoid(klassLoc, ast::MK::Hash(klassLoc, std::move(sigKeys), std::move(sigVals))));
     result.emplace_back(ast::MK::SyntheticMethod(klassLoc, core::Loc(ctx.file, klassLoc), core::Names::initialize(),
                                                  std::move(args), std::move(body)));
@@ -572,7 +572,7 @@ void Prop::run(core::MutableContext ctx, ast::ClassDef *klass) {
         }
     }
     auto propContext = PropContext{syntacticSuperClass, klass->kind};
-    UnorderedMap<ast::Expression *, vector<ast::TreePtr>> replaceNodes;
+    UnorderedMap<ast::TreePtr *, vector<ast::TreePtr>> replaceNodes;
     vector<PropInfo> props;
     for (auto &stat : klass->rhs) {
         auto *send = ast::cast_tree<ast::Send>(stat);
@@ -589,7 +589,7 @@ void Prop::run(core::MutableContext ctx, ast::ClassDef *klass) {
         vector<ast::TreePtr> nodes;
         nodes.emplace_back(ensureWithoutAccessors(propInfo.value(), send));
         nodes.insert(nodes.end(), make_move_iterator(processed.begin()), make_move_iterator(processed.end()));
-        replaceNodes[stat.get()] = std::move(nodes);
+        replaceNodes[&stat] = std::move(nodes);
         props.emplace_back(std::move(propInfo.value()));
     }
     auto oldRHS = std::move(klass->rhs);
@@ -604,10 +604,10 @@ void Prop::run(core::MutableContext ctx, ast::ClassDef *klass) {
     }
     // this is cargo-culted from rewriter.cc.
     for (auto &stat : oldRHS) {
-        if (replaceNodes.find(stat.get()) == replaceNodes.end()) {
+        if (replaceNodes.find(&stat) == replaceNodes.end()) {
             klass->rhs.emplace_back(std::move(stat));
         } else {
-            for (auto &newNode : replaceNodes.at(stat.get())) {
+            for (auto &newNode : replaceNodes.at(&stat)) {
                 klass->rhs.emplace_back(std::move(newNode));
             }
         }

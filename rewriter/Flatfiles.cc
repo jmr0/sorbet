@@ -35,7 +35,7 @@ ast::Send *asFlatfileDo(ast::TreePtr &stat) {
     }
 }
 
-void handleFieldDefinition(core::MutableContext ctx, ast::TreePtr &stat, vector<unique_ptr<ast::Expression>> &methods) {
+void handleFieldDefinition(core::MutableContext ctx, ast::TreePtr &stat, vector<ast::TreePtr> &methods) {
     if (auto send = ast::cast_tree<ast::Send>(stat)) {
         if ((send->fun != core::Names::from() && send->fun != core::Names::field() &&
              send->fun != core::Names::pattern()) ||
@@ -64,17 +64,17 @@ void Flatfiles::run(core::MutableContext ctx, ast::ClassDef *klass) {
         return;
     }
 
-    vector<unique_ptr<ast::Expression>> methods;
+    vector<ast::TreePtr> methods;
     for (auto &stat : klass->rhs) {
         if (auto flatfileBlock = asFlatfileDo(stat)) {
             auto &block = ast::ref_tree<ast::Block>(flatfileBlock->block);
-            if (auto *insSeq = ast::cast_tree<ast::InsSeq>(block->body)) {
+            if (auto *insSeq = ast::cast_tree<ast::InsSeq>(block.body)) {
                 for (auto &stat : insSeq->stats) {
                     handleFieldDefinition(ctx, stat, methods);
                 }
                 handleFieldDefinition(ctx, insSeq->expr, methods);
             } else {
-                handleFieldDefinition(ctx, block->body, methods);
+                handleFieldDefinition(ctx, block.body, methods);
             }
         }
     }

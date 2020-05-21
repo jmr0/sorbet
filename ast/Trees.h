@@ -35,17 +35,18 @@ private:
     std::unique_ptr<Expression> ptr;
 
 public:
-    TreePtr() : ptr(nullptr) {}
+    constexpr TreePtr() noexcept : ptr(nullptr) {}
 
-    explicit TreePtr(Expression *ptr) : ptr(ptr) {}
+    explicit TreePtr(Expression *ptr) noexcept : ptr(ptr) {}
 
-    TreePtr(std::nullptr_t) : ptr(nullptr) {}
+    TreePtr(std::nullptr_t) noexcept : TreePtr() {}
 
     TreePtr(const TreePtr &) = delete;
-    TreePtr& operator=(const TreePtr&) = delete;
+    TreePtr &operator=(const TreePtr &) = delete;
 
-    TreePtr(TreePtr &&other) : ptr(std::move(other.ptr)) {}
-    TreePtr& operator=(TreePtr &&other) {
+    TreePtr(TreePtr &&other) noexcept : ptr(std::move(other.ptr)) {}
+
+    TreePtr &operator=(TreePtr &&other) noexcept {
         this->ptr = std::move(other.ptr);
         return *this;
     }
@@ -83,8 +84,7 @@ public:
     }
 };
 
-template<class E, typename... Args>
-TreePtr make_tree(Args&&... args) {
+template <class E, typename... Args> TreePtr make_tree(Args &&... args) {
     return TreePtr(new E(std::forward<Args>(args)...));
 }
 
@@ -138,7 +138,7 @@ template <class To> To *cast_tree(TreePtr &what) {
 }
 
 // A variant of cast_tree that preserves the const-ness (if const in, then const out)
-template <class To> const To *cast_tree_const(const TreePtr &what) {
+template <class To> To const *cast_tree_const(const TreePtr &what) {
     return fast_cast<Expression, To>(const_cast<Expression *>(what.get()));
 }
 
@@ -147,13 +147,14 @@ template <class To> bool isa_tree(const TreePtr &what) {
 }
 
 template <class To> To &ref_tree(TreePtr &what) {
+    ENFORCE(what != nullptr);
     ENFORCE(isa_tree<To>(what), "ref_tree failed!");
-    return *reinterpret_cast<To>(what.get());
+    return *reinterpret_cast<To *>(what.get());
 }
 
 template <class To> const To &ref_tree_const(const TreePtr &what) {
     ENFORCE(isa_tree<To>(what), "ref_tree failed!");
-    return *reinterpret_cast<To>(what.get());
+    return *reinterpret_cast<To *>(what.get());
 }
 
 class Reference : public Expression {
@@ -191,8 +192,8 @@ public:
     ANCESTORS_store ancestors;
     ANCESTORS_store singletonAncestors;
 
-    ClassDef(core::LocOffsets loc, core::Loc declLoc, core::SymbolRef symbol, TreePtr name,
-             ANCESTORS_store ancestors, RHS_store rhs, ClassDef::Kind kind);
+    ClassDef(core::LocOffsets loc, core::Loc declLoc, core::SymbolRef symbol, TreePtr name, ANCESTORS_store ancestors,
+             RHS_store rhs, ClassDef::Kind kind);
 
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
@@ -243,8 +244,7 @@ public:
     TreePtr thenp;
     TreePtr elsep;
 
-    If(core::LocOffsets loc, TreePtr cond, TreePtr thenp,
-       TreePtr elsep);
+    If(core::LocOffsets loc, TreePtr cond, TreePtr thenp, TreePtr elsep);
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
     virtual std::string nodeName();
@@ -341,8 +341,7 @@ public:
     TreePtr var;
     TreePtr body;
 
-    RescueCase(core::LocOffsets loc, EXCEPTION_store exceptions, TreePtr var,
-               TreePtr body);
+    RescueCase(core::LocOffsets loc, EXCEPTION_store exceptions, TreePtr var, TreePtr body);
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
     virtual std::string nodeName();
@@ -363,8 +362,7 @@ public:
     TreePtr else_;
     TreePtr ensure;
 
-    Rescue(core::LocOffsets loc, TreePtr body, RESCUE_CASE_store rescueCases,
-           TreePtr else_, TreePtr ensure);
+    Rescue(core::LocOffsets loc, TreePtr body, RESCUE_CASE_store rescueCases, TreePtr else_, TreePtr ensure);
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
     virtual std::string nodeName();
@@ -528,8 +526,8 @@ public:
     ARGS_store args;
     TreePtr block; // null if no block passed
 
-    Send(core::LocOffsets loc, TreePtr recv, core::NameRef fun, ARGS_store args,
-         TreePtr block = nullptr, Flags flags = {});
+    Send(core::LocOffsets loc, TreePtr recv, core::NameRef fun, ARGS_store args, TreePtr block = nullptr,
+         Flags flags = {});
     virtual std::string toStringWithTabs(const core::GlobalState &gs, int tabs = 0) const;
     virtual std::string showRaw(const core::GlobalState &gs, int tabs = 0);
     virtual std::string nodeName();

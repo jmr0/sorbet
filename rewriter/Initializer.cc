@@ -61,7 +61,7 @@ const ast::Hash *findParamHash(const ast::Send *send) {
 
 } // namespace
 
-void Initializer::run(core::MutableContext ctx, ast::MethodDef *methodDef, const ast::TreePtr &prevStat) {
+void Initializer::run(core::MutableContext ctx, ast::MethodDef *methodDef, ast::TreePtr *prevStat) {
     // this should only run in an `initialize` that has a sig
     if (methodDef->name != core::Names::initialize()) {
         return;
@@ -70,7 +70,7 @@ void Initializer::run(core::MutableContext ctx, ast::MethodDef *methodDef, const
         return;
     }
     // make sure that the `sig` block looks like a valid sig block
-    auto *sig = ASTUtil::castSig(prevStat, core::Names::void_());
+    auto *sig = ASTUtil::castSig(*prevStat, core::Names::void_());
     if (sig == nullptr) {
         return;
     }

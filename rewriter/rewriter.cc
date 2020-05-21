@@ -52,7 +52,7 @@ public:
             extension->run(ctx, classDef);
         }
 
-        ast::Expression *prevStat = nullptr;
+        ast::TreePtr *prevStat = nullptr;
         UnorderedMap<ast::Expression *, vector<ast::TreePtr>> replaceNodes;
         for (auto &stat : classDef->rhs) {
             typecase(
@@ -137,12 +137,12 @@ public:
 
                 [&](ast::Expression *e) {});
 
-            prevStat = stat.get();
+            prevStat = &stat;
         }
         if (replaceNodes.empty()) {
-            ModuleFunction::run(ctx, classDef.get());
-            SigRewriter::run(ctx, classDef.get());
-            return classDef;
+            ModuleFunction::run(ctx, classDef);
+            SigRewriter::run(ctx, classDef);
+            return tree;
         }
 
         auto oldRHS = std::move(classDef->rhs);
@@ -158,31 +158,33 @@ public:
                 }
             }
         }
-        ModuleFunction::run(ctx, classDef.get());
-        SigRewriter::run(ctx, classDef.get());
+        ModuleFunction::run(ctx, classDef);
+        SigRewriter::run(ctx, classDef);
 
         return tree;
     }
 
     // NOTE: this case differs from the `Send` typecase branch in `postTransformClassDef` above, as it will apply to all
     // sends, not just those that are present in the RHS of a `ClassDef`.
-    unique_ptr<ast::Expression> postTransformSend(core::MutableContext ctx, unique_ptr<ast::Send> send) {
-        if (auto expr = InterfaceWrapper::run(ctx, send.get())) {
+    ast::TreePtr postTransformSend(core::MutableContext ctx, ast::TreePtr tree) {
+        auto *send = ast::cast_tree<ast::Send>(tree);
+
+        if (auto expr = InterfaceWrapper::run(ctx, send)) {
             return expr;
         }
 
-        if (auto expr = SelfNew::run(ctx, send.get())) {
+        if (auto expr = SelfNew::run(ctx, send)) {
             return expr;
         }
 
-        return send;
+        return tree;
     }
 
 private:
     Rewriterer() = default;
 };
 
-unique_ptr<ast::Expression> Rewriter::run(core::MutableContext ctx, unique_ptr<ast::Expression> tree) {
+ast::TreePtr Rewriter::run(core::MutableContext ctx, ast::TreePtr tree) {
     auto ast = std::move(tree);
 
     Rewriterer rewriter;
