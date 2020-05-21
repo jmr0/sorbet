@@ -277,7 +277,7 @@ BasicBlock *CFGBuilder::walk(CFGContext cctx, ast::Expression *what, BasicBlock 
                                 return;
                             }
 
-                            if (ast::isa_tree<ast::Send>(s->args[0].get())) {
+                            if (ast::isa_tree<ast::Send>(s->args[0])) {
                                 // Providing a send is the most common way T.absurd is misused
                                 if (auto e = cctx.ctx.beginError(s->loc, core::errors::CFG::MalformedTAbsurd)) {
                                     e.setHeader("`{}` expects to be called on a variable, not a method call",
