@@ -443,6 +443,7 @@ public:
     //   end
     // end
     static bool checkClassDefinesBehavior(const TreePtr &);
+    static bool checkClassDefinesBehavior(const ast::ClassDef &);
 };
 
 } // namespace sorbet::ast

@@ -78,6 +78,7 @@ unique_ptr<ast::UnresolvedIdent> DefLocSaver::postTransformUnresolvedIdent(core:
 void matchesQuery(core::Context ctx, ast::ConstantLit *lit, const core::lsp::Query &lspQuery, core::SymbolRef symbol) {
     // Iterate. Ensures that we match "Foo" in "Foo::Bar" references.
     while (lit && symbol.exists() && lit->original) {
+        auto &unresolved = ast::ref_tree<ast::UnresolvedConstantLit>(lit->original);
         if (lspQuery.matchesLoc(core::Loc(ctx.file, lit->loc)) || lspQuery.matchesSymbol(symbol)) {
             // This basically approximates the cfg::Alias case from Environment::processBinding.
             core::TypeAndOrigins tp;
@@ -98,10 +99,10 @@ void matchesQuery(core::Context ctx, ast::ConstantLit *lit, const core::lsp::Que
             }
 
             auto resp =
-                core::lsp::ConstantResponse(symbol, core::Loc(ctx.file, lit->loc), scopes, lit->original->cnst, tp);
+                core::lsp::ConstantResponse(symbol, core::Loc(ctx.file, lit->loc), scopes, unresolved.cnst, tp);
             core::lsp::QueryResponse::pushQueryResponse(ctx, resp);
         }
-        lit = ast::cast_tree<ast::ConstantLit>(lit->original->scope.get());
+        lit = ast::cast_tree<ast::ConstantLit>(unresolved.scope);
         if (lit) {
             symbol = lit->symbol.data(ctx)->dealias(ctx);
         }
